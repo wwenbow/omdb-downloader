@@ -1,8 +1,113 @@
+const http = require('http');
+const assert = require('assert');
 const cassandra = require('cassandra-driver');
 const client = new cassandra.Client({ contactPoints: ['default-machine'], keyspace: 'test'});
 
-const query = 'SELECT email, last_name FROM user_profiles WHERE key=?';
-client.execute(query, ['guy'], function(err, result) {
-  assert.ifError(err);
-  console.log('got user profile with email ' + result.rows[0].email);
-});
+/*
+ OMDB response format
+ Format
+ { Title: 'Love Potion No. 9',
+ Year: '1992',
+ Rated: 'PG-13',
+ Released: '13 Nov 1992',
+ Runtime: '92 min',
+ Genre: 'Comedy, Fantasy, Romance',
+ Director: 'Dale Launer',
+ Writer: 'Dale Launer',
+ Actors: 'Tate Donovan, Sandra Bullock, Mary Mara, Dale Midkiff',
+ Plot: 'Two scientists who are hopeless with the opposite sex invent a substance that makes them irresistible to anyone they speak to.',
+ Language: 'English',
+ Country: 'USA',
+ Awards: 'N/A',
+ Poster: 'http://ia.media-imdb.com/images/M/MV5BMTkwOTc1NzAyMV5BMl5BanBnXkFtZTcwMDA3NjUxMQ@@._V1_SX300.jpg',
+ Metascore: 'N/A',
+ imdbRating: '5.6',
+ imdbVotes: '10,136',
+ imdbID: 'tt0102343',
+ Type: 'movie',
+ Response: 'True' }
+ */
+const creatQuery = 'CREATE TABLE IF NOT EXISTS imdb ('
+    + 'movie int PRIMARY KEY,'
+    + 'imdb varchar,'
+    + 'title varchar,'
+    + 'year int,'
+    + 'rated varchar,'
+    + 'released varchar,'
+    + 'runtime varchar,'
+    + 'genre varchar,'
+    + 'director varchar,'
+    + 'writer varchar,'
+    + 'actors varchar,'
+    + 'plot varchar,'
+    + 'language varchar,'
+    + 'country varchar,'
+    + 'awards varchar,'
+    + 'poster varchar,'
+    + 'metascore double,'
+    + 'imdbrating double,'
+    + 'imdbvotes int,'
+    + 'imdbid varchar,'
+    + 'type varchar);';
+
+const insertQuery = 'INSERT INTO imdb (movie, imdb, title, year, rated, '
+    + 'released, runtime, genre, director, writer, actors, plot, language, '
+    + 'country, awards, poster, metascore, imdbrating, imdbvotes, imdbid, '
+    + 'type) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);';
+
+const query = 'SELECT movie, imdb FROM links LIMIT 1';
+
+var count = 0;
+
+//create table
+client.execute(creatQuery,
+    function (err, res) {
+        assert.ifError(err);
+        console.log(res);
+        client.eachRow(query, [],
+            function(n, row) {
+                count += 1;
+                console.log('processing ' + row.movie + ' | ' + row.imdb);
+
+                http.get({
+                    host: 'www.omdbapi.com',
+                    path: '/?i=tt' + row.imdb
+                }, function(response) {
+                    var body = '';
+                    response.on('data', function(d) {
+                        body += d;
+                    });
+                    response.on('end', function() {
+                        const parsed = JSON.parse(body);
+                        console.log(parsed);
+                        console.log(parseFloat(parsed.imdbRating));
+                        console.log(parseInt(parsed.Year));
+                        console.log(parseInt(parsed.imdbVotes.replace(',','')));
+                        client.execute(insertQuery,
+                            [parseInt(row.movie), row.imdb, parsed.Title, parseInt(parsed.Year), parsed.Rated,
+                                parsed.Released, parsed.Runtime, parsed.Genre, parsed.Director, parsed.Writer,
+                                parsed.Actors, parsed.Plot, parsed.Language, parsed.Country, parsed.Awards,
+                                parsed.Poster, parseFloat(parsed.Metascore), parseFloat(parsed.imdbRating),
+                                parseInt(parsed.imdbVotes.replace(',','')), parsed.imdbID, parsed.Type],
+                            {prepare: true},
+                            function (err, res) {
+                                assert.ifError(err);
+                                console.log(res);
+                            });
+                    });
+                });
+
+            },
+            function (err, result) {
+                assert.ifError(err);
+                if (typeof result.nextPage == "function") {
+                    result.nextPage();
+                }
+                else {
+                    console.log('processed ' + count + ' rows')
+                }
+            }
+        );
+    }
+);
+

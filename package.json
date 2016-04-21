@@ -1,24 +1,24 @@
 {
-  "name": "omdb-downloader",
-  "version": "1.0.0",
-  "description": "Download omdb info for movielens dataset",
-  "main": "index.js",
-  "dependencies": {
-      "cassandra-driver": "3.0.2"
-  },
-  "scripts": {
-        "start": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+ssh://git@github.com/wwenbow/omdb-downloader.git"
-  },
-  "author": "Wenbo Wang",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/wwenbow/omdb-downloader/issues"
-  },
-  "homepage": "https://github.com/wwenbow/omdb-downloader#readme"
+    "name": "omdb-downloader",
+    "version": "1.0.0",
+    "description": "Download omdb info for movielens dataset",
+    "main": "index.js",
+    "dependencies": {
+        "cassandra-driver": "3.0.2"
+    },
+    "scripts": {
+        "start": "node index.js",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+ssh://git@github.com/wwenbow/omdb-downloader.git"
+    },
+    "author": "Wenbo Wang",
+    "license": "ISC",
+    "bugs": {
+        "url": "https://github.com/wwenbow/omdb-downloader/issues"
+    },
+    "homepage": "https://github.com/wwenbow/omdb-downloader#readme"
 
 }
