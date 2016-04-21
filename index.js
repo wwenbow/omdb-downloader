@@ -1,5 +1,6 @@
+const fs = require('fs');
+const path = require('path');
 const http = require('http');
-const assert = require('assert');
 const cassandra = require('cassandra-driver');
 const client = new cassandra.Client({ contactPoints: ['default-machine'], keyspace: 'test'});
 
@@ -55,51 +56,64 @@ const insertQuery = 'INSERT INTO imdb (movie, imdb, title, year, rated, '
     + 'country, awards, poster, metascore, imdbrating, imdbvotes, imdbid, '
     + 'type) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);';
 
-const query = 'SELECT movie, imdb FROM links LIMIT 1';
+const query = 'SELECT movie, imdb FROM links';
+const backupDir = __dirname + '/backup'
 
 var count = 0;
 
 //create table
 client.execute(creatQuery,
     function (err, res) {
-        assert.ifError(err);
-        console.log(res);
+        if(err) {
+            console.info(err);
+        }
+
         client.eachRow(query, [],
             function(n, row) {
                 count += 1;
-                console.log('processing ' + row.movie + ' | ' + row.imdb);
 
                 http.get({
-                    host: 'www.omdbapi.com',
-                    path: '/?i=tt' + row.imdb
-                }, function(response) {
-                    var body = '';
-                    response.on('data', function(d) {
-                        body += d;
-                    });
-                    response.on('end', function() {
-                        const parsed = JSON.parse(body);
-                        console.log(parsed);
-                        console.log(parseFloat(parsed.imdbRating));
-                        console.log(parseInt(parsed.Year));
-                        console.log(parseInt(parsed.imdbVotes.replace(',','')));
-                        client.execute(insertQuery,
-                            [parseInt(row.movie), row.imdb, parsed.Title, parseInt(parsed.Year), parsed.Rated,
-                                parsed.Released, parsed.Runtime, parsed.Genre, parsed.Director, parsed.Writer,
-                                parsed.Actors, parsed.Plot, parsed.Language, parsed.Country, parsed.Awards,
-                                parsed.Poster, parseFloat(parsed.Metascore), parseFloat(parsed.imdbRating),
-                                parseInt(parsed.imdbVotes.replace(',','')), parsed.imdbID, parsed.Type],
-                            {prepare: true},
-                            function (err, res) {
-                                assert.ifError(err);
-                                console.log(res);
-                            });
-                    });
-                });
+                        host: 'www.omdbapi.com',
+                        path: '/?i=tt' + row.imdb
+                    },
+                    function(response) {
+                        var body = '';
+                        response.on('data', function(d) {
+                            body += d;
+                        });
+                        response.on('end', function() {
+                            const parsed = JSON.parse(body);
 
+                            client.execute(insertQuery,
+                                [parseInt(row.movie), row.imdb, parsed.Title, parseInt(parsed.Year), parsed.Rated,
+                                    parsed.Released, parsed.Runtime, parsed.Genre, parsed.Director, parsed.Writer,
+                                    parsed.Actors, parsed.Plot, parsed.Language, parsed.Country, parsed.Awards,
+                                    parsed.Poster, parseFloat(parsed.Metascore), parseFloat(parsed.imdbRating),
+                                    parseInt(parsed.imdbVotes.replace(',','')), parsed.imdbID, parsed.Type],
+                                {prepare: true},
+                                function (err, res) {
+                                    if(err) {
+                                        console.info(err);
+                                    }
+                                });
+
+                            fs.mkdir(backupDir, function () {
+                                var file = path.resolve(backupDir + '/tt' + row.imdb);
+                                fs.unlink(file, function () {
+                                    fs.writeFile(file, JSON.stringify(parsed, null, 2), function(err) {
+                                        if(err) {
+                                            console.info(err);
+                                        }
+                                    });
+                                });
+                            });
+                        });
+                    });
             },
             function (err, result) {
-                assert.ifError(err);
+                if(err) {
+                    console.info(err);
+                }
                 if (typeof result.nextPage == "function") {
                     result.nextPage();
                 }
