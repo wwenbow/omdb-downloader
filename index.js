@@ -45,7 +45,7 @@ const creatQuery = 'CREATE TABLE IF NOT EXISTS imdb ('
     + 'country varchar,'
     + 'awards varchar,'
     + 'poster varchar,'
-    + 'metascore varchar,'
+    + 'metascore double,'
     + 'imdbrating double,'
     + 'imdbvotes int,'
     + 'imdbid varchar,'
@@ -56,11 +56,14 @@ const insertQuery = 'INSERT INTO imdb (movie, imdb, title, year, rated, '
     + 'country, awards, poster, metascore, imdbrating, imdbvotes, imdbid, '
     + 'type) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);';
 
-const query = 'SELECT movie, imdb FROM links LIMIT 400';
+const query = 'SELECT movie, imdb FROM links';
 const backupDir = __dirname + '/backup'
 
 var count = 0;
 var callbacks = 0;
+
+//Limit http connections to avoid connection errors
+http.globalAgent.maxSockets = 50;
 
 //create table
 client.execute(creatQuery,
@@ -86,16 +89,24 @@ client.execute(creatQuery,
                         response.on('end', function() {
                             const parsed = JSON.parse(body);
 
+                            var metascore = parseFloat(parsed.Metascore);
+                            var imdbrating = parseFloat(parsed.imdbRating);
+                            var imdbvotes = parseInt(parsed.imdbVotes.replace(',',''))
+                            
+                            if (isNaN(metascore)) metascore = -1;
+                            if (isNaN(imdbrating)) imdbrating = -1;
+                            if (isNaN(imdbvotes)) imdbvotes = -1;
+
                             client.execute(insertQuery,
                                 [parseInt(row.movie), row.imdb, parsed.Title, parseInt(parsed.Year), parsed.Rated,
                                     parsed.Released, parsed.Runtime, parsed.Genre, parsed.Director, parsed.Writer,
                                     parsed.Actors, parsed.Plot, parsed.Language, parsed.Country, parsed.Awards,
-                                    parsed.Poster, parsed.Metascore, parseFloat(parsed.imdbRating),
-                                    parseInt(parsed.imdbVotes.replace(',','')), parsed.imdbID, parsed.Type],
+                                    parsed.Poster, metascore, imdbrating,
+                                    imdbvotes, parsed.imdbID, parsed.Type],
                                 {prepare: true},
                                 function (err, res) {
                                     if(err) {
-                                        console.info('row ' + n + ' failed to insert into cassandra');
+                                        console.info('movie tt' + row.imdb + ' failed to insert into cassandra');
                                         console.info(err);
                                     }
                                     callbacks -= 1;
@@ -106,11 +117,11 @@ client.execute(creatQuery,
                                 });
 
                             fs.mkdir(backupDir, function () {
-                                var file = path.resolve(backupDir + '/tt' + row.imdb);
+                                const file = path.resolve(backupDir + '/tt' + row.imdb);
                                 fs.unlink(file, function () {
                                     fs.writeFile(file, JSON.stringify(parsed, null, 2), function(err) {
                                         if(err) {
-                                            console.info('row ' + n + ' failed to write to file');
+                                            console.info('movie tt' + row.imdb + ' failed to write to file');
                                             console.info(err);
                                         }
                                         callbacks -= 1;
