@@ -45,7 +45,7 @@ const creatQuery = 'CREATE TABLE IF NOT EXISTS imdb ('
     + 'country varchar,'
     + 'awards varchar,'
     + 'poster varchar,'
-    + 'metascore double,'
+    + 'metascore varchar,'
     + 'imdbrating double,'
     + 'imdbvotes int,'
     + 'imdbid varchar,'
@@ -56,10 +56,11 @@ const insertQuery = 'INSERT INTO imdb (movie, imdb, title, year, rated, '
     + 'country, awards, poster, metascore, imdbrating, imdbvotes, imdbid, '
     + 'type) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);';
 
-const query = 'SELECT movie, imdb FROM links';
+const query = 'SELECT movie, imdb FROM links LIMIT 400';
 const backupDir = __dirname + '/backup'
 
 var count = 0;
+var callbacks = 0;
 
 //create table
 client.execute(creatQuery,
@@ -71,6 +72,7 @@ client.execute(creatQuery,
         client.eachRow(query, [],
             function(n, row) {
                 count += 1;
+                callbacks += 2;
 
                 http.get({
                         host: 'www.omdbapi.com',
@@ -88,12 +90,18 @@ client.execute(creatQuery,
                                 [parseInt(row.movie), row.imdb, parsed.Title, parseInt(parsed.Year), parsed.Rated,
                                     parsed.Released, parsed.Runtime, parsed.Genre, parsed.Director, parsed.Writer,
                                     parsed.Actors, parsed.Plot, parsed.Language, parsed.Country, parsed.Awards,
-                                    parsed.Poster, parseFloat(parsed.Metascore), parseFloat(parsed.imdbRating),
+                                    parsed.Poster, parsed.Metascore, parseFloat(parsed.imdbRating),
                                     parseInt(parsed.imdbVotes.replace(',','')), parsed.imdbID, parsed.Type],
                                 {prepare: true},
                                 function (err, res) {
                                     if(err) {
+                                        console.info('row ' + n + ' failed to insert into cassandra');
                                         console.info(err);
+                                    }
+                                    callbacks -= 1;
+                                    if (callbacks == 0) {
+                                        console.log('callbacks completed')
+                                        process.exit();
                                     }
                                 });
 
@@ -102,7 +110,13 @@ client.execute(creatQuery,
                                 fs.unlink(file, function () {
                                     fs.writeFile(file, JSON.stringify(parsed, null, 2), function(err) {
                                         if(err) {
+                                            console.info('row ' + n + ' failed to write to file');
                                             console.info(err);
+                                        }
+                                        callbacks -= 1;
+                                        if (callbacks == 0) {
+                                            console.log('callbacks completed')
+                                            process.exit();
                                         }
                                     });
                                 });
