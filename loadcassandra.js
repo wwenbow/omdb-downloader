@@ -152,7 +152,7 @@ function loadCassandraWithCSV(tables, schemas, delimiter, header, filetype){
 var main = function(){
     const args = process.argv.slice(2);
 
-    const tables = ['ratings', 'tags', 'movies', 'links', 'imdb'];
+    const tables = ['imdb'];
     const schemas = {
         ratings : '(user int, movie int, rating double, PRIMARY KEY(user, movie))', //rating
         tags : '(user int, movie int, tag varchar, PRIMARY KEY(user, movie))', //tag
@@ -232,16 +232,11 @@ var main = function(){
     })
     .then(function() {
         console.log('all created');
-        return Promise.all(loadCassandraWithCSV(tables.splice(0, 4),
-                                                colNames, ',', true, '.csv'));
-    })
-    .then(function() {
-        console.log('all created');
-        return Promise.all(loadCassandraWithCSV([ 'imdb' ] ,
+        return Promise.all(loadCassandraWithCSV([ 'imdb' ],
                                                 colNames, '|', false, '.psv'));
     })
     .then(function() {
-        console.log('all loaded');
+        console.log('all inserted');
         process.exit(0);
     })
     .catch(function(err) {
